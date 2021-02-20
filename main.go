@@ -118,6 +118,12 @@ func main() {
 					}
 
 					sql = PrepareSQL(sql, args)
+
+					convertedItemsToUpdate := make(map[string]string)
+					for k, item := range itemsToUpdate {
+						convertedItemsToUpdate[k] = ConvertInterfaceToString(item)
+					}
+					log.Println("[UPDATE] A match was found, but there is a difference in the data. Updating the row in "+tableName, "on", convertedItemsToUpdate)
 					output.OutputLn(configuration.OutputFileName, sql)
 
 					found = true
@@ -144,6 +150,7 @@ func main() {
 					}
 
 					sql = PrepareSQL(sql, args)
+					log.Println("[INSERT] No match found, add a row to "+tableName, "with values", ConvertToNormalString(values))
 					output.OutputLn(configuration.OutputFileName, sql)
 				}
 
@@ -187,7 +194,13 @@ func main() {
 						continue
 					}
 
+					convertedRowsToDelete := make(map[int]string)
+					for k, row := range rowsToDelete {
+						convertedRowsToDelete[k] = ConvertInterfaceToString(row)
+					}
+
 					sql = PrepareSQL(sql, args)
+					log.Println("[DELETE] No match found PROD -> PREPROD, delete a row in "+tableName, "with values", convertedRowsToDelete)
 					output.OutputLn(configuration.OutputFileName, sql)
 				}
 
@@ -206,7 +219,7 @@ func PrepareSQL(sql string, args []interface{}) string {
 		case nil:
 			arg = "NULL"
 		case []byte:
-			arg = fmt.Sprintf("'%s'", string(args[i].([]byte)))
+			arg = fmt.Sprintf("'%s'", strings.TrimSpace(string(args[i].([]byte))))
 		default:
 			arg = fmt.Sprintf("%v", args[i])
 		}
@@ -215,6 +228,33 @@ func PrepareSQL(sql string, args []interface{}) string {
 	}
 
 	return sql
+}
+
+func ConvertToNormalString(args []interface{}) string {
+	var result string
+
+	for i := range args {
+		arg := ConvertInterfaceToString(args[i])
+
+		result += arg + " "
+	}
+
+	return result
+}
+
+func ConvertInterfaceToString(arg interface{}) string {
+	var result string
+
+	switch arg.(type) {
+	case nil:
+		result = "NULL"
+	case []byte:
+		result = fmt.Sprintf("'%s'", strings.TrimSpace(string(arg.([]byte))))
+	default:
+		result = fmt.Sprintf("%v", arg)
+	}
+
+	return result
 }
 
 func CompareConstraints(table model.Table, prodItem, preprodItem model.Item) bool {

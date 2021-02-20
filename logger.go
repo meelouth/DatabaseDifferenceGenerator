@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"log"
+)
 
 type Logger struct {
 	def string
@@ -8,9 +10,9 @@ type Logger struct {
 }
 
 func (l Logger) Log(message string) {
-	fmt.Println(l.def, message)
+	log.Println(l.def, message)
 }
 
 func (l Logger) Error(message string) {
-	fmt.Println(l.red, message)
+	log.Println(l.red, message)
 }
