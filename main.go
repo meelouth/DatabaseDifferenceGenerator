@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strconv"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -63,12 +64,12 @@ func main() {
 
 		processedTables = append(processedTables, tableName)
 
-		itemsProd, err := repProd.GetTableItems(ctx, table, schema.Name)
+		itemsProd, err := repProd.GetTableItems(ctx, table)
 		if err != nil {
 			log.Fatal(err, table)
 		}
 
-		itemsPreprod, err := repPreprod.GetTableItems(ctx, table, schema.Name)
+		itemsPreprod, err := repPreprod.GetTableItems(ctx, table)
 		if err != nil {
 			log.Fatal(err, table)
 		}
@@ -101,7 +102,7 @@ func main() {
 					break
 				}
 
-				builder := sq.Update(GetFullTableName(&schema, &table)).PlaceholderFormat(sq.Question)
+				builder := sq.Update(tableName).PlaceholderFormat(sq.Dollar)
 				for k := range itemsToUpdate {
 					builder = builder.Set(k, itemsToUpdate[k])
 				}
@@ -145,7 +146,7 @@ func main() {
 					values[i] = preprodItem.Columns[column.Name]
 				}
 
-				sql, args, err := sq.Insert(GetFullTableName(&schema, &table)).Columns(columns...).Values(values...).ToSql()
+				sql, args, err := sq.Insert(tableName).Columns(columns...).Values(values...).PlaceholderFormat(sq.Dollar).ToSql()
 
 				if err != nil {
 					log.Println(err)
@@ -178,7 +179,7 @@ func main() {
 			if !found {
 				rowsToDelete = append(rowsToDelete, prodItem)
 
-				builder := sq.Delete("").From(GetFullTableName(&schema, &table))
+				builder := sq.Delete("").PlaceholderFormat(sq.Dollar).From(tableName)
 
 				if len(table.Constrains) == 0 {
 					for _, column := range table.Columns {
@@ -217,11 +218,14 @@ func PrepareSQL(sql string, args []interface{}) string {
 			arg = "NULL"
 		case []byte:
 			arg = fmt.Sprintf("'%s'", strings.TrimSpace(string(args[i].([]byte))))
+		case string:
+			arg = "'" + fmt.Sprintf("%v", args[i]) + "'"
 		default:
 			arg = fmt.Sprintf("%v", args[i])
 		}
 
-		sql = strings.Replace(sql, "?", arg, 1)
+		placeholder := "$" + strconv.Itoa(i+1)
+		sql = strings.Replace(sql, placeholder, arg, 1)
 	}
 
 	sql += ";"
@@ -247,7 +251,7 @@ func ConvertInterfaceToString(arg interface{}) string {
 	case nil:
 		result = "NULL"
 	case []byte:
-		result = fmt.Sprintf("'%s'", strings.TrimSpace(string(arg.([]byte))))
+		result = string(arg.([]byte))
 	default:
 		result = fmt.Sprintf("%v", arg)
 	}

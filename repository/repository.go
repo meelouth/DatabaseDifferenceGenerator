@@ -22,18 +22,18 @@ ORDER BY table_name
 	selectDescribeTableQuery = `
         SELECT column_name, data_type, column_default, is_nullable
         FROM information_schema.COLUMNS
-        WHERE table_name = $1
+        WHERE table_schema || '.' || table_name = $1
     `
 
 	selectConstraintsQuery = `
         SELECT c.column_name column_name,
-               c.data_type data_type,
-               constraint_type
-        FROM information_schema.table_constraints tc
-                 JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
-                 JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
-            AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
-        WHERE constraint_type in ('PRIMARY KEY', 'UNIQUE') and tc.table_name = $1
+       c.data_type data_type,
+       constraint_type
+FROM information_schema.table_constraints tc
+         JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
+         JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
+    AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
+WHERE constraint_type in ('PRIMARY KEY', 'UNIQUE') and  tc.table_schema || '.' || tc.table_name = $1
     `
 
 	selectSchemasQuery = `
@@ -53,7 +53,7 @@ and rco.constraint_schema = fk_tco.table_schema
 join information_schema.table_constraints pk_tco
 on rco.unique_constraint_name = pk_tco.constraint_name
 and rco.unique_constraint_schema = pk_tco.table_schema
-where fk_tco.table_name = $1 -- enter table name here
+where fk_tco.table_schema || '.' || fk_tco.table_name = $1 -- enter table name here
 --and fk_tco.table_schema = 'schema_name'
 order by fk_table_name;`
 )
@@ -124,7 +124,7 @@ func (r *Repository) GetSchemas(ctx context.Context) ([]model.Schema, error) {
 	return schemas, err
 }
 
-func (r *Repository) GetTableItems(ctx context.Context, table model.Table, database string) ([]model.Item, error) {
+func (r *Repository) GetTableItems(ctx context.Context, table model.Table) ([]model.Item, error) {
 	columns := make([]string, len(table.Columns))
 	for i, col := range table.Columns {
 		if col.Name != "" {
@@ -136,7 +136,7 @@ func (r *Repository) GetTableItems(ctx context.Context, table model.Table, datab
 		return nil, errors.New("no columns to select")
 	}
 
-	builder := sq.Select(columns...).From(fmt.Sprintf("%s.%s", database, table.Name))
+	builder := sq.Select(columns...).From(fmt.Sprintf("%s", table.Name))
 
 	sql, args, err := builder.ToSql()
 	if err != nil {
