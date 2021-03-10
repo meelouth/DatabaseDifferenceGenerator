@@ -13,7 +13,6 @@ builds:
       - linux
       - windows
       - darwin
-      - macos
 archives:
   - replacements:
       darwin: Darwin

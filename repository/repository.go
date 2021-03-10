@@ -13,16 +13,16 @@ import (
 
 const (
 	selectTables = `
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = $1
-        ORDER BY table_name
+        SELECT table_schema || '.' || table_name as table_name
+FROM information_schema.tables
+WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'public')
+ORDER BY table_name
     `
 
 	selectDescribeTableQuery = `
         SELECT column_name, data_type, column_default, is_nullable
         FROM information_schema.COLUMNS
-        WHERE table_name = $1 and table_schema = $2
+        WHERE table_name = $1
     `
 
 	selectConstraintsQuery = `
@@ -41,6 +41,21 @@ const (
 		FROM pg_catalog.pg_namespace
 		WHERE nspname NOT IN ('pg_toast', 'pg_catalog', 'public', 'information_schema')
 	`
+
+	selectTablesByFKQuery = `
+select distinct
+fk_tco.table_schema || '.' || fk_tco.table_name as fk_table_name,
+pk_tco.table_schema || '.' || pk_tco.table_name as primary_table_name
+from information_schema.referential_constraints rco
+join information_schema.table_constraints fk_tco
+on rco.constraint_name = fk_tco.constraint_name
+and rco.constraint_schema = fk_tco.table_schema
+join information_schema.table_constraints pk_tco
+on rco.unique_constraint_name = pk_tco.constraint_name
+and rco.unique_constraint_schema = pk_tco.table_schema
+where fk_tco.table_name = $1 -- enter table name here
+--and fk_tco.table_schema = 'schema_name'
+order by fk_table_name;`
 )
 
 type Repository struct {
@@ -58,9 +73,9 @@ func New(dsn string) *Repository {
 	}
 }
 
-func (r *Repository) GetTables(ctx context.Context, tableSchema string) ([]string, error) {
+func (r *Repository) GetTables(ctx context.Context) ([]string, error) {
 	var tables []string
-	err := r.connection.SelectContext(ctx, &tables, selectTables, tableSchema)
+	err := r.connection.SelectContext(ctx, &tables, selectTables)
 	if err != nil {
 		return nil, errors.Wrap(err, "list tables query execution failed")
 	}
@@ -68,9 +83,19 @@ func (r *Repository) GetTables(ctx context.Context, tableSchema string) ([]strin
 	return tables, nil
 }
 
-func (r *Repository) GetColumns(ctx context.Context, tableName, tableSchema string) ([]model.Column, error) {
+func (r *Repository) GetRelations(ctx context.Context, table string) ([]model.Relation, error) {
+	var tables []model.Relation
+	err := r.connection.SelectContext(ctx, &tables, selectTablesByFKQuery, table)
+	if err != nil {
+		return nil, errors.Wrap(err, "get fk tables query execution failed")
+	}
+
+	return tables, nil
+}
+
+func (r *Repository) GetColumns(ctx context.Context, tableName string) ([]model.Column, error) {
 	var columns []model.Column
-	err := r.connection.SelectContext(ctx, &columns, selectDescribeTableQuery, tableName, tableSchema)
+	err := r.connection.SelectContext(ctx, &columns, selectDescribeTableQuery, tableName)
 	if err != nil {
 		return nil, errors.Wrap(err, "list columns query failed")
 	}

@@ -25,6 +25,11 @@ type Schema struct {
 	Name string `db:"nspname"`
 }
 
+type Relation struct {
+	FKTableName string `db:"fk_table_name"`
+	PKTableName string `db:"primary_table_name"`
+}
+
 func BuildTableData(name string, columns []Column, constrains []Constraint) Table {
 	table := Table{
 		Name:       name,
@@ -51,9 +56,3 @@ func BuildTableData(name string, columns []Column, constrains []Constraint) Tabl
 type Item struct {
 	Columns map[string]interface{}
 }
-
-//import (
-//    "strings"
-//)
-//strings.Contains("something", "some")
-// нихуя не понял строки же просто сравниваются ==
